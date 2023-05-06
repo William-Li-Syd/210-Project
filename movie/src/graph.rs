@@ -1,85 +1,147 @@
 
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::fs;
+use std::path::PathBuf;
 
-
-#[derive(Debug, Clone)]
-struct Graph {
-    nodes: Vec<String>,
-    edges: Vec<(String, String)>,
-    
+// Define the MovieGraph struct and its methods.
+pub struct MovieGraph {
+    adj_list: HashMap<String, HashSet<String>>,
 }
 
-impl Graph {
-    fn new() -> Graph {
-        Graph {
-            nodes: Vec::new(),
-            edges: Vec::new(),
+impl MovieGraph {
+    // Define a new method to create an empty movie graph.
+    pub fn new() -> Self {
+        Self {
+            adj_list: HashMap::new(),
         }
     }
 
-    // fn add_node(&mut self, node: String) {
-    //     self.nodes.push(node);
-    // }
-
-    fn add_edge(&mut self, node1: String, node2: String) {
-        self.edges.push((node1, node2));
+     // Define a method to get a reference to the adj_list HashMap.
+     pub fn get_adj_list(&self) -> &HashMap<String, HashSet<String>> {
+        &self.adj_list
     }
 
-    fn get_adjacency_list(&self) -> HashMap<String, Vec<String>> {
-        let mut adjacency_list = HashMap::new();
-        for (node1, node2) in &self.edges {
-            adjacency_list
-                .entry(node1.clone())
-                .or_insert_with(Vec::new)
-                .push(node2.clone());
-            adjacency_list
-                .entry(node2.clone())
-                .or_insert_with(Vec::new)
-                .push(node1.clone());
-        }
-        adjacency_list
-    }
-}
+    // Define a from_file method to create a movie graph from a CSV file.
+    pub fn from_file(fname: &str) -> Result<Self, std::io::Error> {
+        let mut graph = Self::new();
 
+        let mut path = PathBuf::new();
+        path.push(fname);
 
-fn read_file() {
-    let mut graph = Graph::new();
-    let adjacency_list = graph.get_adjacency_list();
+        // Read the contents of the file into a string.
+        let contents = fs::read_to_string(fname)?;
 
-    let data = std::fs::read_to_string("movie.csv").unwrap()
-        .lines()
-        .map(|line| {
+        // Iterate over each line of the file and add edges between actors.
+        for line in contents.lines() {
             let fields: Vec<&str> = line.split(',').collect();
-            let title = fields[0].to_string();
-            let actors: Vec<String> = fields[1..].iter().map(|a| a.to_string()).collect();
-            vec![title, actors.join(";")]
-        })
-        .collect::<Vec<_>>();
+            let title = fields[0];
+            let actors = fields[1]
+                .split(';')
+                .map(|a| a.trim())
+                .collect::<Vec<&str>>();
 
-    for edge in &data {
-        let title = &edge[0];
-        let actors = &edge[1];
-
-        // Add the movie as an edge to the graph
-        graph.add_edge(title.to_string(), actors.to_string());
-
-        // Add the actors as nodes to the graph
-        let actor_vec: Vec<_> = actors.split(";").collect();
-        for i in 0..actor_vec.len() {
-            for j in (i + 1)..actor_vec.len() {
-                graph.add_edge(actor_vec[i].to_string(), actor_vec[j].to_string());
+            for i in 0..actors.len() {
+                for j in (i + 1)..actors.len() {
+                    graph.add_edge(
+                        actors[i].to_string(),
+                        actors[j].to_string(),
+                        title.to_string(),
+                    );
+                }
             }
         }
-        // println!("{:?}", actor_vec);
+        Ok(graph)
     }
 
-    // println!("{:?}", graph.edges);
+    // Define an add_edge method to add an edge between two actors.
+    pub fn add_edge(&mut self, u: String, v: String, _title: String) {
+        self.adj_list
+            .entry(u.clone())
+            .or_insert(HashSet::new())
+            .insert(v.clone());
+        self.adj_list
+            .entry(v.clone())
+            .or_insert(HashSet::new())
+            .insert(u.clone());
+    }
+    
+    pub fn num_vertices(&self) -> usize {
+        self.adj_list.len()
+    }
+
+    // function to count the number of edges (movies) in the graph
+    pub fn num_edges(&self) -> usize {
+        let mut count = 0;
+        for set in self.adj_list.values() {
+            count += set.len();
+        }
+        count / 2 // divide by 2 since each edge is counted twice
+    }
+    
+    // Define a bfs method to find the shortest path between two actors.
+    pub fn bfs(&self, start: &str, end: &str) -> Option<Vec<String>> {
+        let mut queue = VecDeque::new();
+        let mut visited = HashSet::new();
+        let mut prev = HashMap::new();
+    
+        queue.push_back(start.to_string());
+        visited.insert(start.to_string());
+    
+        while let Some(node) = queue.pop_front() {
+            if node == end {
+                let mut path = Vec::new();
+                let mut curr = &end.to_string();
+    
+                while curr != &start.to_string() {
+                    path.push(curr.clone());
+                    curr = prev.get(curr).unwrap();
+                }
+                path.push(start.to_string());
+    
+                path.reverse();
+                return Some(path);
+            }
+    
+            for neighbor in self.adj_list.get(&node).unwrap() {
+                if !visited.contains(neighbor) {
+                    visited.insert(neighbor.to_string());
+                    prev.insert(neighbor.to_string(), node.clone());
+                    queue.push_back(neighbor.to_string());
+                }
+            }
+        }
+        None
+    }
 }
 
-// fn bfs(graph: &Graph, start: &str, end: &str) -> Option<Vec<String>> {
-//     let mut queue = VecDeque::new();
-//     let mut visited = HashMap::new();
-//     let mut parent = HashMap::new();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     queue.push_back(start);
-//     visited.insert(start, true);
-//     parent.insert(start, None);
+    #[test]
+    fn test_movie_graph() {
+        // Create a new MovieGraph.
+        let mut graph = MovieGraph::new();
+
+        // Add some edges to the graph.
+        graph.add_edge("Tom Hanks".to_string(), "Meg Ryan".to_string(), "You've Got Mail".to_string());
+        graph.add_edge("Meg Ryan".to_string(), "Billy Crystal".to_string(), "When Harry Met Sally".to_string());
+        graph.add_edge("Billy Crystal".to_string(), "Lisa Kudrow".to_string(), "Analyze That".to_string());
+        graph.add_edge("Tom Hanks".to_string(), "Kevin Bacon".to_string(), "Apollo 13".to_string());
+
+        // Check that the graph contains the expected edges.
+        let adj_list = graph.get_adj_list();
+        assert!(adj_list.get("Tom Hanks").unwrap().contains("Meg Ryan"));
+        assert!(adj_list.get("Meg Ryan").unwrap().contains("Tom Hanks"));
+        assert!(adj_list.get("Meg Ryan").unwrap().contains("Billy Crystal"));
+        assert!(adj_list.get("Billy Crystal").unwrap().contains("Meg Ryan"));
+        assert!(adj_list.get("Billy Crystal").unwrap().contains("Lisa Kudrow"));
+        assert!(adj_list.get("Lisa Kudrow").unwrap().contains("Billy Crystal"));
+        assert!(adj_list.get("Tom Hanks").unwrap().contains("Kevin Bacon"));
+        assert!(adj_list.get("Kevin Bacon").unwrap().contains("Tom Hanks"));
+
+        // Find the shortest path between two actors.
+        let path = graph.bfs("Tom Hanks", "Lisa Kudrow").unwrap();
+        assert_eq!(path, vec!["Tom Hanks", "Meg Ryan", "Billy Crystal", "Lisa Kudrow"]);
+    }
+}
