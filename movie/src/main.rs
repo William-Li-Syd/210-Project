@@ -38,4 +38,8 @@ fn main() {
             println!("No path found between {} and {}.", start, end);
         }
     }
+
+    let avg_shortest_path = graph.calculate_average_shortest_path(100);
+    println!("Average shortest path length for 100 random pairs of actors: {:.2}", avg_shortest_path);
+    
 }

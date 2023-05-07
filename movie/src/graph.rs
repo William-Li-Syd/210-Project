@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
+use rand::{seq::SliceRandom, thread_rng};
 
 // Define the MovieGraph struct and its methods.
 pub struct MovieGraph {
@@ -104,7 +105,31 @@ impl MovieGraph {
     
         None
     }
+    pub fn calculate_average_shortest_path(&self, n: usize) -> f64 {
+        let actors: Vec<&str> = self.get_adj_list().keys().map(|s| s.as_str()).collect();
+        let mut rng = thread_rng();
+        let mut total_paths_length = 0;
+        let mut successful_paths = 0;
+
+        for _ in 0..n {
+            let start = *actors.choose(&mut rng).unwrap();
+            let end = *actors.choose(&mut rng).unwrap();
+
+            if let Some(path) = self.bfs(start, end) {
+                total_paths_length += path.len() - 1; // Subtract 1 to exclude the starting actor
+                successful_paths += 1;
+            }
+        }
+
+        if successful_paths == 0 {
+            0.0
+        } else {
+            total_paths_length as f64 / successful_paths as f64
+        }
+    }
 }
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
