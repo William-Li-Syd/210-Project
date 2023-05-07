@@ -1,7 +1,5 @@
-
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
-use std::path::PathBuf;
 
 // Define the MovieGraph struct and its methods.
 pub struct MovieGraph {
@@ -16,8 +14,8 @@ impl MovieGraph {
         }
     }
 
-     // Define a method to get a reference to the adj_list HashMap.
-     pub fn get_adj_list(&self) -> &HashMap<String, HashSet<String>> {
+    // Define a method to get a reference to the adj_list HashMap.
+    pub fn get_adj_list(&self) -> &HashMap<String, HashSet<String>> {
         &self.adj_list
     }
 
@@ -25,16 +23,11 @@ impl MovieGraph {
     pub fn from_file(fname: &str) -> Result<Self, std::io::Error> {
         let mut graph = Self::new();
 
-        let mut path = PathBuf::new();
-        path.push(fname);
-
-        // Read the contents of the file into a string.
         let contents = fs::read_to_string(fname)?;
 
         // Iterate over each line of the file and add edges between actors.
         for line in contents.lines() {
             let fields: Vec<&str> = line.split(',').collect();
-            let title = fields[0];
             let actors = fields[1]
                 .split(';')
                 .map(|a| a.trim())
@@ -45,7 +38,6 @@ impl MovieGraph {
                     graph.add_edge(
                         actors[i].to_string(),
                         actors[j].to_string(),
-                        title.to_string(),
                     );
                 }
             }
@@ -54,7 +46,7 @@ impl MovieGraph {
     }
 
     // Define an add_edge method to add an edge between two actors.
-    pub fn add_edge(&mut self, u: String, v: String, _title: String) {
+    pub fn add_edge(&mut self, u: String, v: String) {
         self.adj_list
             .entry(u.clone())
             .or_insert(HashSet::new())
@@ -64,12 +56,13 @@ impl MovieGraph {
             .or_insert(HashSet::new())
             .insert(u.clone());
     }
-    
+
+    // Define a method to get the number of vertices in the graph.
     pub fn num_vertices(&self) -> usize {
         self.adj_list.len()
     }
 
-    // function to count the number of edges (movies) in the graph
+    // Define a method to get the number of edges (movies) in the graph.
     pub fn num_edges(&self) -> usize {
         let mut count = 0;
         for set in self.adj_list.values() {
@@ -77,13 +70,11 @@ impl MovieGraph {
         }
         count / 2 // divide by 2 since each edge is counted twice
     }
-    
     // Define a bfs method to find the shortest path between two actors.
     pub fn bfs(&self, start: &str, end: &str) -> Option<Vec<String>> {
         let mut queue = VecDeque::new();
         let mut visited = HashSet::new();
         let mut prev = HashMap::new();
-    
         queue.push_back(start.to_string());
         visited.insert(start.to_string());
     
@@ -110,38 +101,90 @@ impl MovieGraph {
                 }
             }
         }
+    
         None
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_movie_graph() {
-        // Create a new MovieGraph.
+    // Helper function to create a sample MovieGraph for testing.
+    fn create_test_graph() -> MovieGraph {
         let mut graph = MovieGraph::new();
 
-        // Add some edges to the graph.
-        graph.add_edge("Tom Hanks".to_string(), "Meg Ryan".to_string(), "You've Got Mail".to_string());
-        graph.add_edge("Meg Ryan".to_string(), "Billy Crystal".to_string(), "When Harry Met Sally".to_string());
-        graph.add_edge("Billy Crystal".to_string(), "Lisa Kudrow".to_string(), "Analyze That".to_string());
-        graph.add_edge("Tom Hanks".to_string(), "Kevin Bacon".to_string(), "Apollo 13".to_string());
+        graph.add_edge("Tom Hanks".to_string(), "Meg Ryan".to_string());
+        graph.add_edge("Meg Ryan".to_string(), "Billy Crystal".to_string());
+        graph.add_edge("Billy Crystal".to_string(), "Lisa Kudrow".to_string());
+        graph.add_edge("Tom Hanks".to_string(), "Kevin Bacon".to_string());
 
-        // Check that the graph contains the expected edges.
+        graph
+    }
+
+
+    // Test the creation of a MovieGraph and ensure vertices and edges are added correctly.
+    #[test]
+    fn test_movie_graph_creation() {
+        let graph = create_test_graph();
+        let adj_list = graph.get_adj_list();
+
+        assert_eq!(graph.num_vertices(), 5);
+        assert_eq!(graph.num_edges(), 4);
+
+        // Check that the adjacency list contains the expected connections.
+        assert!(adj_list.get("Tom Hanks").unwrap().contains("Meg Ryan"));
+        assert!(adj_list.get("Tom Hanks").unwrap().contains("Kevin Bacon"));
+        // ...
+    }
+
+    // Test that the BFS algorithm finds the correct shortest path when a path exists.
+    #[test]
+    fn test_bfs_path_exists() {
+        let graph = create_test_graph();
+
+        let path = graph.bfs("Tom Hanks", "Lisa Kudrow").unwrap();
+        assert_eq!(path, vec!["Tom Hanks", "Meg Ryan", "Billy Crystal", "Lisa Kudrow"]);
+    }
+
+    // Test that the BFS algorithm returns None when no path exists between two actors. // suppose to fail 
+    #[test]
+    fn test_bfs_path_not_exists() {
+        let graph = create_test_graph();
+
+        let path = graph.bfs("Leonardo DiCaprio", "Meryl Streep");
+        assert!(path.is_none());
+    }
+
+    // Test that the BFS algorithm returns a path containing only the start actor when the start and end actors are the same.
+    #[test]
+    fn test_bfs_same_actor() {
+        let graph = create_test_graph();
+
+        let path = graph.bfs("Tom Hanks", "Tom Hanks").unwrap();
+        assert_eq!(path, vec!["Tom Hanks"]);
+    }
+
+    // Test adding an edge between two new actors to the MovieGraph.
+    #[test]
+    fn test_add_edge_new() {
+        let mut graph = MovieGraph::new();
+
+        graph.add_edge("Tom Hanks".to_string(), "Meg Ryan".to_string());
+
         let adj_list = graph.get_adj_list();
         assert!(adj_list.get("Tom Hanks").unwrap().contains("Meg Ryan"));
         assert!(adj_list.get("Meg Ryan").unwrap().contains("Tom Hanks"));
-        assert!(adj_list.get("Meg Ryan").unwrap().contains("Billy Crystal"));
-        assert!(adj_list.get("Billy Crystal").unwrap().contains("Meg Ryan"));
-        assert!(adj_list.get("Billy Crystal").unwrap().contains("Lisa Kudrow"));
-        assert!(adj_list.get("Lisa Kudrow").unwrap().contains("Billy Crystal"));
-        assert!(adj_list.get("Tom Hanks").unwrap().contains("Kevin Bacon"));
-        assert!(adj_list.get("Kevin Bacon").unwrap().contains("Tom Hanks"));
+    }
 
-        // Find the shortest path between two actors.
-        let path = graph.bfs("Tom Hanks", "Lisa Kudrow").unwrap();
-        assert_eq!(path, vec!["Tom Hanks", "Meg Ryan", "Billy Crystal", "Lisa Kudrow"]);
+    // Test adding an edge between an existing actor and a new actor in the MovieGraph.
+    #[test]
+    fn test_add_edge_existing() {
+        let mut graph = create_test_graph();
+
+        graph.add_edge("Meg Ryan".to_string(), "Kevin Bacon".to_string());
+
+        let adj_list = graph.get_adj_list();
+        assert!(adj_list.get("Meg Ryan").unwrap().contains("Kevin Bacon"));
+        assert!(adj_list.get("Kevin Bacon").unwrap().contains("Meg Ryan"));
     }
 }
